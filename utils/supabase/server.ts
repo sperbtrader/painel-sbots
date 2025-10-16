@@ -1,4 +1,5 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { type SupabaseClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { Database } from '@/types_db';
 
@@ -39,5 +40,5 @@ export const createClient = () => {
         }
       }
     }
-  );
+  ) as unknown as SupabaseClient<Database>;
 };
