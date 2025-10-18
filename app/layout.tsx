@@ -6,8 +6,8 @@ import { PropsWithChildren, Suspense } from 'react';
 import { getURL } from '@/utils/helpers';
 import 'styles/main.css';
 
-const title = 'Next.js Subscription Starter';
-const description = 'Brought to you by Vercel, Stripe, and Supabase.';
+const title = 'SBOTS · Robô de Lucro Diário';
+const description = 'Receba lucros automáticos com o robô de investimento SBOTS. Teste grátis por 7 dias e veja resultados reais em até 48h.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(getURL()),
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: PropsWithChildren) {
   return (
-    <html lang="en">
+    <html lang="pt-BR">
       <body className="bg-black">
         <Navbar />
         <main
