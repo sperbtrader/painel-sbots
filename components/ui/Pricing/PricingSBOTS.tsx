@@ -1,10 +1,9 @@
+// PricingSBOTS.tsx modificado para usar Mercado Pago
+
 'use client';
 
 import Button from '@/components/ui/Button';
 import type { Tables } from '@/types_db';
-import { getStripe } from '@/utils/stripe/client';
-import { checkoutWithStripe } from '@/utils/stripe/server';
-import { getErrorRedirect } from '@/utils/helpers';
 import { User } from '@supabase/supabase-js';
 import { useRouter, usePathname } from 'next/navigation';
 import { useState } from 'react';
@@ -26,14 +25,14 @@ interface Props {
   subscription: SubscriptionWithProduct | null;
 }
 
-// Definição dos 4 planos SBOTS com os Price IDs do Stripe
+// Definição dos 4 planos SBOTS com os IDs dos planos do Mercado Pago
 const SBOTS_PLANS = [
   {
     id: 'alfa-1-mini',
     name: 'AlfaSharksFlow (1 MINI)',
     description: 'Acesso AlfaSharksFlow limitado a 1 mini-contrato.',
     price: 'R$ 297',
-    priceId: 'price_1SJPlhJGwANBgkqP14HNrppO',
+    planId: '', // TODO: substituir pelo ID do plano do Mercado Pago
     features: [
       'Acesso por 1 mês',
       '1 robô AlfaSharksFlow',
@@ -47,7 +46,7 @@ const SBOTS_PLANS = [
     name: 'SharkScalping',
     description: 'Robô operacional Scalper para WINFUT.',
     price: 'R$ 497',
-    priceId: 'price_1SJPmIJGwANBgkqPxTujKU5b',
+    planId: '', // TODO: substituir pelo ID do plano do Mercado Pago
     features: [
       'Acesso por 1 mês',
       '1 robô SharkScalping',
@@ -61,7 +60,7 @@ const SBOTS_PLANS = [
     name: 'SBOTS AlfaSharksFlow',
     description: 'Robô operacional conservador para Mini Índice Futuro.',
     price: 'R$ 497',
-    priceId: 'price_1SJPWjJGwANBgkqPeK1phKvl',
+    planId: '', // TODO: substituir pelo ID do plano do Mercado Pago
     features: [
       'Acesso por 1 mês',
       '1 robô AlfaSharksFlow',
@@ -73,9 +72,10 @@ const SBOTS_PLANS = [
   {
     id: 'combo-flow-scalping',
     name: 'Combo SBOTS FlowScalping',
-    description: 'AlfaSharksFlow WINFUT + AlfaSharkScalping WINFUT + Acesso a todos os modelos de teste limitados a 1 mini-contrato + SUPORTE EXCLUSIVO.',
+    description:
+      'AlfaSharksFlow WINFUT + AlfaSharkScalping WINFUT + Acesso a todos os modelos de teste limitados a 1 mini-contrato + SUPORTE EXCLUSIVO.',
     price: 'R$ 997',
-    priceId: 'price_1SJPh0JGwANBgkqPBvpE5glN',
+    planId: '', // TODO: substituir pelo ID do plano do Mercado Pago
     features: [
       'Acesso por 1 mês',
       'AlfaSharksFlow WINFUT',
@@ -93,54 +93,39 @@ export default function PricingSBOTS({ user, subscription }: Props) {
   const [priceIdLoading, setPriceIdLoading] = useState<string>();
   const currentPath = usePathname();
 
-  const handleStripeCheckout = async (priceId: string) => {
-    setPriceIdLoading(priceId);
+  // Função para processar checkout com Mercado Pago
+  const handleMercadoPagoCheckout = async (planId: string) => {
+    setPriceIdLoading(planId);
 
     if (!user) {
       setPriceIdLoading(undefined);
       return router.push('/signin/signup');
     }
 
-    // Criar objeto price mock para compatibilidade com a função existente
-    const price = {
-      id: priceId,
-      product_id: '',
-      active: true,
-      currency: 'brl',
-      type: 'one_time' as const,
-      unit_amount: 0,
-      interval: 'month' as const,
-      interval_count: 1,
-      trial_period_days: null,
-      metadata: {},
-      description: null
-    };
+    try {
+      const response = await fetch('/api/mercadopago/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planId })
+      });
 
-    const { errorRedirect, sessionId } = await checkoutWithStripe(
-      price,
-      currentPath
-    );
+      if (!response.ok) {
+        throw new Error('Erro ao criar assinatura.');
+      }
 
-    if (errorRedirect) {
+      const data = await response.json();
+      const { init_point } = data;
+
+      if (init_point) {
+        window.location.href = init_point;
+      } else {
+        throw new Error('Não foi possível obter o link de pagamento.');
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
       setPriceIdLoading(undefined);
-      return router.push(errorRedirect);
     }
-
-    if (!sessionId) {
-      setPriceIdLoading(undefined);
-      return router.push(
-        getErrorRedirect(
-          currentPath,
-          'Ocorreu um erro desconhecido.',
-          'Por favor, tente novamente mais tarde ou entre em contato com o suporte.'
-        )
-      );
-    }
-
-    const stripe = await getStripe();
-    stripe?.redirectToCheckout({ sessionId });
-
-    setPriceIdLoading(undefined);
   };
 
   return (
@@ -176,12 +161,8 @@ export default function PricingSBOTS({ user, subscription }: Props) {
               )}
 
               <div className="mb-6">
-                <h3 className="text-2xl font-bold text-white mb-2">
-                  {plan.name}
-                </h3>
-                <p className="text-sm text-zinc-400 min-h-[60px]">
-                  {plan.description}
-                </p>
+                <h3 className="text-2xl font-bold text-white mb-2">{plan.name}</h3>
+                <p className="text-sm text-zinc-400 min-h-[60px]">{plan.description}</p>
               </div>
 
               <div className="mb-6">
@@ -203,13 +184,14 @@ export default function PricingSBOTS({ user, subscription }: Props) {
               <Button
                 variant="slim"
                 type="button"
-                loading={priceIdLoading === plan.priceId}
-                onClick={() => handleStripeCheckout(plan.priceId)}
+                loading={priceIdLoading === plan.planId}
+                onClick={() => handleMercadoPagoCheckout(plan.planId)}
                 className={`w-full py-3 rounded-full font-bold transition-all ${
                   plan.recommended
                     ? 'bg-gradient-to-r from-[#2D8CFF] to-[#00E676] text-black hover:shadow-[0_0_20px_rgba(0,230,118,0.5)]'
                     : 'bg-zinc-800 text-white hover:bg-zinc-700'
                 }`}
+                disabled={!!subscription}
               >
                 {subscription ? 'Gerenciar' : 'Assinar Agora'}
               </Button>
@@ -219,11 +201,9 @@ export default function PricingSBOTS({ user, subscription }: Props) {
 
         {/* Guarantee Section */}
         <div className="bg-zinc-900 border border-[#00E676]/20 rounded-2xl p-8 md:p-12 mb-12">
-          <h2 className="text-3xl font-bold text-[#00E676] mb-4">
-            🔐 Garantia Dupla SBOTS™
-          </h2>
+          <h2 className="text-3xl font-bold text-[#00E676] mb-4">Garantia Dupla SBOTS™</h2>
           <p className="text-lg text-zinc-300">
-            Teste nosso robô por 7 dias. Se não lucrar, devolvemos seu dinheiro + um bônus surpresa. 
+            Teste nosso robô por 7 dias. Se não lucrar, devolvemos seu dinheiro + um bônus surpresa.
             Sem letras miúdas. Sem enrolação.
           </p>
         </div>
@@ -237,21 +217,20 @@ export default function PricingSBOTS({ user, subscription }: Props) {
             rel="noopener noreferrer"
             className="inline-block px-8 py-4 text-lg font-bold text-white border-2 border-[#00E676] rounded-full hover:bg-[#00E676] hover:text-black transition-all"
           >
-            💬 Falar no WhatsApp
+            Falar no WhatsApp
           </a>
         </div>
 
         {/* Disclaimer */}
         <div className="mt-16 text-center text-sm text-zinc-500 leading-relaxed max-w-4xl mx-auto">
           <p>
-            <strong>*Aviso legal:</strong> Os resultados passados não garantem retorno futuro. 
-            Os números apresentados são médias de usuários anteriores e podem variar conforme o mercado. 
-            Não oferecemos garantia de lucro fixo. Operar no mercado financeiro envolve riscos. 
-            Esta não é uma recomendação de investimento.
+            <strong>*Aviso legal:</strong> Os resultados passados não garantem retorno futuro. Os
+            números apresentados são médias de usuários anteriores e podem variar conforme o mercado.
+            Não oferecemos garantia de lucro fixo. Operar no mercado financeiro envolve riscos. Esta
+            não é uma recomendação de investimento.
           </p>
         </div>
       </section>
     </div>
   );
 }
-
